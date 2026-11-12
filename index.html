@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1418">
+<title>Leaf classifier &middot; MLR exercise 08</title>
+<style>
+  :root{
+    --bg:#0f1418; --panel:#171e24; --line:#26313a; --fg:#e8eef2; --dim:#93a4b0;
+    --accent:#4ade80; --warn:#fbbf24; --err:#f87171; --bar:#2b3742;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--fg);
+    font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    padding:0 0 40px; -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:640px; margin:0 auto; padding:14px}
+  h1{font-size:19px; margin:6px 0 2px; letter-spacing:.2px}
+  .sub{color:var(--dim); font-size:13px; margin:0 0 12px}
+  .stage{position:relative; width:100%; aspect-ratio:1/1; background:#000;
+    border-radius:14px; overflow:hidden; border:1px solid var(--line)}
+  video{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; background:#000}
+  #snap{position:absolute; inset:0; width:100%; height:100%; object-fit:contain;
+    background:#000; display:none}
+  .guide{position:absolute; inset:0; pointer-events:none;
+    box-shadow:inset 0 0 0 2px rgba(255,255,255,.55)}
+  .corner{position:absolute; width:26px; height:26px; border:3px solid var(--accent)}
+  .tl{top:6px;left:6px;border-right:0;border-bottom:0}
+  .tr{top:6px;right:6px;border-left:0;border-bottom:0}
+  .bl{bottom:6px;left:6px;border-right:0;border-top:0}
+  .br{bottom:6px;right:6px;border-left:0;border-top:0}
+  .hint{position:absolute; left:0; right:0; bottom:10px; text-align:center;
+    font-size:12px; color:#cbd5dd; text-shadow:0 1px 3px #000; padding:0 8px}
+  .panel{background:var(--panel); border:1px solid var(--line); border-radius:14px;
+    padding:12px 14px; margin:12px 0}
+  .row{display:grid; grid-template-columns:88px 1fr 64px; align-items:center; gap:10px;
+    padding:7px 0}
+  .row + .row{border-top:1px solid var(--line)}
+  .name{font-size:14px; text-transform:capitalize}
+  .track{height:12px; background:var(--bar); border-radius:7px; overflow:hidden}
+  .fill{height:100%; width:0%; background:var(--accent); border-radius:7px;
+    transition:width .12s linear}
+  .row:not(.top) .fill{background:#4b8ea8}
+  .pct{font-variant-numeric:tabular-nums; text-align:right; font-size:13px; color:var(--dim)}
+  .row.top .pct{color:var(--fg); font-weight:600}
+  .status{font-size:13px; color:var(--dim); min-height:19px}
+  .status.err{color:var(--err)}
+  .status.ok{color:var(--accent)}
+  .status.warn{color:var(--warn)}
+  button,.btn{
+    appearance:none; -webkit-appearance:none; border:1px solid var(--line);
+    background:#1f2831; color:var(--fg); font-size:15px; padding:11px 14px;
+    border-radius:11px; margin:4px 6px 4px 0; cursor:pointer; display:inline-block;
+  }
+  button:active,.btn:active{background:#28323d}
+  button.primary{background:var(--accent); color:#08210f; border-color:transparent; font-weight:600}
+  input[type=file]{display:none}
+  h2{font-size:14px; margin:0 0 8px; color:var(--dim); text-transform:uppercase; letter-spacing:.08em}
+  table.check{width:100%; border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums}
+  table.check th{text-align:right; color:var(--dim); font-weight:500; padding:3px 6px}
+  table.check td{text-align:right; padding:3px 6px; border-top:1px solid var(--line)}
+  table.check td:first-child,table.check th:first-child{text-align:left; text-transform:capitalize}
+  .verdict{font-weight:700; margin-top:8px}
+  .verdict.pass{color:var(--accent)} .verdict.fail{color:var(--err)}
+  #qr{background:#fff; padding:10px; border-radius:10px; image-rendering:pixelated;
+    image-rendering:crisp-edges; width:180px; height:180px; display:block}
+  .qrbox{display:flex; gap:16px; align-items:center; flex-wrap:wrap}
+  .qrside{flex:1 1 190px; min-width:180px}
+  .qrlabel{font-size:14px; margin:0 0 6px; font-weight:600}
+  .qrside a{color:var(--accent); word-break:break-all; font-size:14px}
+  .qrside .note{color:var(--dim); font-size:12px; margin-top:8px}
+  code{background:#121a20; padding:1px 5px; border-radius:5px; font-size:12.5px}
+  .foot{color:var(--dim); font-size:12px; margin-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Leaf classifier &mdash; live camera</h1>
+  <p class="sub">ONNX Runtime Web + <code>leaf_model.onnx</code>. Preprocessing per
+    <code>model_info.json</code>: central square &rarr; <span id="szTxt">?</span>&times;<span
+    id="szTxt2">?</span> &rarr; RGB/255 &rarr; per-channel (x&minus;mean)/std &rarr;
+    <code>1&times;3&times;<span id="szTxt3">?</span>&times;<span id="szTxt4">?</span></code>.</p>
+
+  <div class="stage" id="stage">
+    <video id="video" playsinline muted autoplay></video>
+    <img id="snap" alt="classified photo">
+    <div class="guide" id="guide">
+      <div class="corner tl"></div><div class="corner tr"></div>
+      <div class="corner bl"></div><div class="corner br"></div>
+    </div>
+    <div class="hint" id="hint">Point the rear camera at a leaf, filling the square.</div>
+  </div>
+
+  <div class="panel">
+    <h2>Probabilities</h2>
+    <div id="rows"></div>
+    <div class="status" id="status">Loading model&hellip;</div>
+  </div>
+
+  <div class="panel">
+    <h2>Controls</h2>
+    <button id="camBtn" class="primary">Start rear camera</button>
+    <label class="btn" for="file">Choose photo&hellip;</label>
+    <input type="file" id="file" accept="image/*">
+    <button id="testBtn">Self-test (check_image.jpg)</button>
+    <div class="foot">Camera access needs HTTPS (or localhost) plus a tap on the button.
+      If it is refused, use the photo fallback.</div>
+  </div>
+
+  <div class="panel" id="selftestPanel" hidden>
+    <h2>Self-test</h2>
+    <img id="testImg" alt="check_image.jpg preview"
+         style="width:96px;height:96px;border-radius:8px;border:1px solid var(--line);
+                margin-bottom:8px">
+    <table class="check"><thead><tr>
+      <th>class</th><th>page</th><th>expected</th><th>|diff|</th>
+    </tr></thead><tbody id="testRows"></tbody></table>
+    <div class="verdict" id="testVerdict"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Open this page on your phone</h2>
+    <div class="qrbox">
+      <canvas id="qr" width="21" height="21" aria-label="QR code linking to this page"></canvas>
+      <div class="qrside">
+        <p class="qrlabel">Scan this QR code with the iPhone camera app</p>
+        <a id="qrLink" href="#" rel="me">open this page</a>
+        <div class="note">The code is generated in this page by its own encoder (no third-party
+          QR image service) and encodes the deployed GitHub&nbsp;Pages address shown above.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+"use strict";
+
+/* ==========================================================================
+   Configuration
+   ========================================================================== */
+const MODEL_URL   = "leaf_model.onnx";
+const INFO_URL    = "model_info.json";
+const CHECK_IMAGE = "check_image.jpg";
+const CHECK_JSON  = "check_expected.json";
+/* The public GitHub Pages URL of this page; the QR code must encode exactly this. */
+const PAGES_URL   = "https://marucmiralova.github.io/mlr-ex08/";
+/* onnxruntime-web UMD bundles (wasm-only backend) to try, in order. */
+const ORT_BUILDS  = ["1.22.0", "1.31.1"];
+
+let INFO = {classes: [], input_size: 96, mean: [0, 0, 0], std: [1, 1, 1]};
+let ortLib = null, session = null;
+let stream = null, running = false, busy = false, lastInfer = 0;
+
+const $ = (id) => document.getElementById(id);
+const video = $("video"), snap = $("snap"), guide = $("guide"), hint = $("hint");
+const statusEl = $("status");
+
+function setStatus(msg, cls) {
+  statusEl.textContent = msg;
+  statusEl.className = "status" + (cls ? " " + cls : "");
+}
+
+/* ==========================================================================
+   Probability rows (one per class, highest first)
+   ========================================================================== */
+function buildRows() {
+  const host = $("rows");
+  host.innerHTML = "";
+  INFO.classes.forEach((name) => {
+    const row = document.createElement("div");
+    row.className = "row";
+    const n = document.createElement("div");
+    n.className = "name";
+    n.textContent = name;
+    const track = document.createElement("div");
+    track.className = "track";
+    const fill = document.createElement("div");
+    fill.className = "fill";
+    track.appendChild(fill);
+    const pct = document.createElement("div");
+    pct.className = "pct";
+    pct.textContent = "–";
+    row.appendChild(n); row.appendChild(track); row.appendChild(pct);
+    host.appendChild(row);
+  });
+}
+
+function fmt(p) {
+  if (p >= 0.01) return (p * 100).toFixed(1) + "%";
+  if (p >= 0.0001) return (p * 100).toFixed(2) + "%";
+  return p.toExponential(1);
+}
+
+function showProbs(probs) {
+  const order = INFO.classes.map((c, i) => ({name: c, p: probs[i]}))
+    .sort((a, b) => b.p - a.p);
+  const rows = $("rows").children;
+  for (let slot = 0; slot < order.length; slot++) {
+    const row = rows[slot];
+    row.classList.toggle("top", slot === 0);
+    row.children[0].textContent = order[slot].name;
+    row.querySelector(".fill").style.width = (order[slot].p * 100).toFixed(1) + "%";
+    row.children[2].textContent = fmt(order[slot].p);
+  }
+}
+
+function resetProbs() {
+  Array.prototype.forEach.call($("rows").children, (r) => {
+    r.classList.remove("top");
+    r.querySelector(".fill").style.width = "0%";
+    r.children[2].textContent = "–";
+  });
+}
+
+/* ==========================================================================
+   Preprocessing: central square -> input_size -> [0,1] -> (x-mean)/std -> NCHW
+   ========================================================================== */
+const work = document.createElement("canvas");
+const workCtx = work.getContext("2d", {willReadFrequently: true});
+const mid = document.createElement("canvas");
+const midCtx = mid.getContext("2d");
+
+/* src: HTMLVideoElement or HTMLCanvasElement (already full-size) */
+function makeTensor(src, srcW, srcH) {
+  const S = INFO.input_size;
+  const side = Math.min(srcW, srcH);
+  const sx = (srcW - side) / 2, sy = (srcH - side) / 2;
+
+  work.width = S; work.height = S;
+  workCtx.imageSmoothingEnabled = true;
+  workCtx.imageSmoothingQuality = "high";
+
+  if (side > 2 * S) {                     // two-step downscale, closer to a box filter
+    const M = Math.max(S * 4, 128);
+    mid.width = M; mid.height = M;
+    midCtx.imageSmoothingEnabled = true;
+    midCtx.imageSmoothingQuality = "high";
+    midCtx.drawImage(src, sx, sy, side, side, 0, 0, M, M);
+    workCtx.drawImage(mid, 0, 0, M, M, 0, 0, S, S);
+  } else {
+    workCtx.drawImage(src, sx, sy, side, side, 0, 0, S, S);
+  }
+
+  const px = workCtx.getImageData(0, 0, S, S).data;      // RGBA, 0..255
+  const N = S * S;
+  const t = new Float32Array(3 * N);
+  const m = INFO.mean, sd = INFO.std;
+  for (let i = 0; i < N; i++) {
+    const o = i * 4;
+    t[i]         = (px[o]     / 255 - m[0]) / sd[0];     // R plane
+    t[N + i]     = (px[o + 1] / 255 - m[1]) / sd[1];     // G plane
+    t[2 * N + i] = (px[o + 2] / 255 - m[2]) / sd[2];     // B plane
+  }
+  return new ortLib.Tensor("float32", t, [1, 3, S, S]);
+}
+
+function softmax(v) {
+  let mx = -Infinity;
+  for (let i = 0; i < v.length; i++) if (v[i] > mx) mx = v[i];
+  const e = new Array(v.length);
+  let s = 0;
+  for (let i = 0; i < v.length; i++) { e[i] = Math.exp(v[i] - mx); s += e[i]; }
+  return e.map((x) => x / s);
+}
+
+/* Returns {probs, preview} — preview is a PNG data URL of the 96x96 model input. */
+async function classify(src, srcW, srcH, withPreview) {
+  const tensor = makeTensor(src, srcW, srcH);
+  const out = await session.run({[session.inputNames[0]]: tensor});
+  const raw = out[session.outputNames[0]];               // logits
+  return {probs: softmax(raw.data),
+          preview: withPreview ? work.toDataURL("image/png") : null};
+}
+
+/* ==========================================================================
+   Camera
+   ========================================================================== */
+function showCameraUI() {
+  snap.style.display = "none";
+  video.style.display = "block";
+  guide.style.display = "block";
+}
+
+function showStillUI(preview) {
+  running = false;
+  snap.src = preview;
+  snap.style.display = "block";
+  video.style.display = "none";
+  guide.style.display = "none";
+}
+
+async function openCamera() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)
+    throw new Error("getUserMedia is unavailable in this browser");
+  const base = {width: {ideal: 1280}, height: {ideal: 720}};
+  const tries = [
+    {facingMode: {ideal: "environment"}},
+    {facingMode: "environment"},
+    {facingMode: "user"},
+    {},
+  ];
+  let lastErr;
+  for (const extra of tries) {
+    try {
+      return await navigator.mediaDevices.getUserMedia(
+        Object.assign({video: Object.assign({}, base, extra), audio: false}));
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error("no camera");
+}
+
+async function startCamera() {
+  stopCamera();
+  setStatus("Requesting camera…", "warn");
+  try {
+    stream = await openCamera();
+  } catch (e) {
+    setStatus("Camera refused (" + ((e && (e.name || e.message)) || e) +
+      ") — tap the button again or use “Choose photo…”.", "err");
+    hint.textContent = "Camera not available — upload a photo instead.";
+    return;
+  }
+  video.srcObject = stream;
+  video.muted = true;
+  video.setAttribute("playsinline", "");
+  try { await video.play(); } catch (e) { /* retried below */ }
+  if (video.readyState < 2) {
+    await new Promise((res) => {
+      const timer = setTimeout(res, 3000);
+      video.addEventListener("loadeddata", () => { clearTimeout(timer); res(); }, {once: true});
+    });
+  }
+  try { await video.play(); } catch (e) { /* ignore */ }
+  const track = stream.getVideoTracks()[0];
+  showCameraUI();
+  resetProbs();
+  hint.textContent = "Using " + ((track && track.label) || "rear camera");
+  $("camBtn").textContent = "Stop camera";
+  setStatus("Classifying live — model input " + INFO.input_size + "×" + INFO.input_size, "ok");
+  running = true;
+  requestAnimationFrame(loop);
+}
+
+function stopCamera() {
+  running = false;
+  busy = false;
+  if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
+  video.srcObject = null;
+  $("camBtn").textContent = "Start rear camera";
+}
+
+async function loop() {
+  if (!running) return;
+  if (document.hidden || busy || !session || video.readyState < 2 ||
+      performance.now() - lastInfer < 100) {
+    requestAnimationFrame(loop);
+    return;
+  }
+  busy = true;
+  lastInfer = performance.now();
+  try {
+    const {probs} = await classify(video, video.videoWidth, video.videoHeight, false);
+    if (running) showProbs(probs);
+  } catch (e) {
+    setStatus("Inference error: " + ((e && e.message) || e), "err");
+    running = false;
+  } finally {
+    busy = false;
+  }
+  if (running) requestAnimationFrame(loop);
+}
+
+/* ==========================================================================
+   Still images: photo upload and self-test
+   ========================================================================== */
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => resolve(im);
+    im.onerror = () => reject(new Error("could not load image"));
+    im.src = src;
+  });
+}
+
+async function classifyFileLike(img, label) {
+  if (!session) throw new Error("model not loaded yet");
+  const c = document.createElement("canvas");
+  c.width = img.naturalWidth;
+  c.height = img.naturalHeight;
+  c.getContext("2d").drawImage(img, 0, 0);
+  stopCamera();
+  const {probs, preview} = await classify(c, c.width, c.height, true);
+  showProbs(probs);
+  showStillUI(preview);
+  hint.textContent = label;
+  return probs;
+}
+
+function onFile(ev) {
+  const file = ev.target.files && ev.target.files[0];
+  ev.target.value = "";
+  if (!file) return;
+  if (!session) { setStatus("Model not loaded yet.", "err"); return; }
+  const url = URL.createObjectURL(file);
+  setStatus("Classifying photo…");
+  loadImage(url).then(async (im) => {
+    await classifyFileLike(im, file.name);
+    URL.revokeObjectURL(url);
+    setStatus("Photo classified.", "ok");
+  }).catch((e) => {
+    URL.revokeObjectURL(url);
+    setStatus("Photo failed: " + ((e && e.message) || e), "err");
+  });
+}
+
+async function selfTest() {
+  $("selftestPanel").hidden = false;
+  $("testVerdict").className = "verdict";
+  $("testVerdict").textContent = "running…";
+  if (!session) { $("testVerdict").textContent = "FAIL — model not loaded"; return; }
+  const stamp = "?v=" + Date.now();
+  $("testImg").src = CHECK_IMAGE + stamp;
+  const expected = await (await fetch(CHECK_JSON + stamp)).json();
+  const img = await loadImage(CHECK_IMAGE + stamp);
+  const probs = await classifyFileLike(img, "self-test: " + CHECK_IMAGE);
+
+  $("testRows").innerHTML = "";
+  let worst = 0;
+  INFO.classes.forEach((cls, i) => {
+    const got = probs[i], exp = Number(expected[cls]);
+    const d = Math.abs(got - exp);
+    worst = Math.max(worst, d);
+    const tr = document.createElement("tr");
+    ["", "", "", ""].forEach(() => tr.appendChild(document.createElement("td")));
+    tr.children[0].textContent = cls;
+    tr.children[1].textContent = got.toFixed(6);
+    tr.children[2].textContent = exp.toFixed(6);
+    tr.children[3].textContent = d.toExponential(1);
+    $("testRows").appendChild(tr);
+  });
+  const pass = worst < 2e-2;
+  $("testVerdict").textContent = (pass ? "PASS" : "FAIL") + " — max |difference| = " +
+    worst.toExponential(2);
+  $("testVerdict").className = "verdict " + (pass ? "pass" : "fail");
+}
+
+/* ==========================================================================
+   QR encoder — byte mode, EC level M, ISO/IEC 18004.
+   Written for this page so the code is generated locally in the browser.
+   ========================================================================== */
+const QR = (() => {
+  // EC level M tables, indexed by version 1..40.
+  const ECC_PER_BLOCK = [0, 10, 16, 26, 18, 24, 16, 18, 22, 22, 26, 30, 22, 22, 24, 24, 28,
+    28, 26, 26, 26, 26, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28,
+    28, 28];
+  const NUM_BLOCKS = [0, 1, 1, 1, 2, 2, 4, 4, 4, 5, 5, 5, 8, 9, 9, 10, 10, 11, 13, 14, 16,
+    17, 17, 18, 20, 21, 23, 25, 26, 28, 29, 31, 33, 35, 37, 38, 40, 43, 45, 47, 49];
+
+  const EXP = new Uint16Array(512), LOG = new Uint16Array(256);
+  for (let i = 0, x = 1; i < 255; i++) {
+    EXP[i] = x; LOG[x] = i;
+    x <<= 1;
+    if (x & 0x100) x ^= 0x11d;                 // primitive polynomial of GF(256)
+  }
+  for (let i = 255; i < 512; i++) EXP[i] = EXP[i - 255];
+  const gfMul = (a, b) => (a === 0 || b === 0) ? 0 : EXP[LOG[a] + LOG[b]];
+
+  /* Reed-Solomon generator polynomial of the given degree, descending order, monic. */
+  function rsGenerator(degree) {
+    let g = [1];
+    for (let i = 0; i < degree; i++) {
+      const next = new Array(g.length + 1).fill(0);
+      for (let j = 0; j < g.length; j++) {
+        next[j] ^= gfMul(g[j], 1);             // * x
+        next[j + 1] ^= gfMul(g[j], EXP[i]);    // * alpha^i
+      }
+      g = next;
+    }
+    return g;
+  }
+
+  /* Polynomial remainder of `data` modulo `gen` (gen is monic, descending). */
+  function rsRemainder(data, gen) {
+    const res = new Array(gen.length - 1).fill(0);
+    for (let k = 0; k < data.length; k++) {
+      const factor = data[k] ^ res[0];
+      res.shift(); res.push(0);
+      for (let i = 0; i < res.length; i++) res[i] ^= gfMul(gen[i + 1], factor);
+    }
+    return res;
+  }
+
+  function rawDataModules(v) {
+    let r = (16 * v + 128) * v + 64;
+    if (v >= 2) {
+      const na = Math.floor(v / 7) + 2;
+      r -= (25 * na - 10) * na - 55;           // alignment patterns
+      if (v >= 7) r -= 36;                     // version information
+    }
+    return r;
+  }
+  const totalCodewords = (v) => Math.floor(rawDataModules(v) / 8);
+  const dataCodewords = (v) => totalCodewords(v) - ECC_PER_BLOCK[v] * NUM_BLOCKS[v];
+
+  function alignPositions(v) {
+    if (v === 1) return [];
+    const n = Math.floor(v / 7) + 2;
+    const step = (v === 32) ? 26 : Math.ceil((v * 4 + 4) / (n * 2 - 2)) * 2;
+    const pos = [6];
+    for (let p = v * 4 + 10; pos.length < n; p -= step) pos.splice(1, 0, p);
+    return pos;
+  }
+
+  function toUtf8(str) {
+    const out = [];
+    for (const ch of str) {
+      const cp = ch.codePointAt(0);
+      if (cp < 0x80) out.push(cp);
+      else if (cp < 0x800) out.push(0xc0 | (cp >> 6), 0x80 | (cp & 63));
+      else if (cp < 0x10000)
+        out.push(0xe0 | (cp >> 12), 0x80 | ((cp >> 6) & 63), 0x80 | (cp & 63));
+      else out.push(0xf0 | (cp >> 18), 0x80 | ((cp >> 12) & 63), 0x80 | ((cp >> 6) & 63),
+        0x80 | (cp & 63));
+    }
+    return out;
+  }
+
+  /* Data codewords: mode + length + payload + terminator + 0xEC/0x11 padding. */
+  function buildDataCodewords(ver, payload) {
+    const total = dataCodewords(ver);
+    const capacityBits = total * 8;
+    const lenBits = ver < 10 ? 8 : 16;
+    const bits = [];
+    const put = (val, n) => { for (let i = n - 1; i >= 0; i--) bits.push((val >>> i) & 1); };
+    put(4, 4);                                  // 0100 = byte mode
+    put(payload.length, lenBits);
+    for (const b of payload) put(b, 8);
+    const terminator = Math.min(4, capacityBits - bits.length);
+    for (let i = 0; i < terminator; i++) bits.push(0);
+    while (bits.length % 8 !== 0) bits.push(0);
+    const out = new Uint8Array(total);
+    for (let i = 0; i < out.length; i++) {
+      if (i * 8 >= bits.length) {               // pad bytes
+        out[i] = (((i * 8 - bits.length) / 8) % 2 === 0) ? 0xec : 0x11;
+        continue;
+      }
+      let b = 0;
+      for (let j = 0; j < 8; j++) b = (b << 1) | (bits[i * 8 + j] || 0);
+      out[i] = b;
+    }
+    return out;
+  }
+
+  /* Split into blocks, add Reed-Solomon EC, interleave. */
+  function addEccAndInterleave(data, ver) {
+    const numBlocks = NUM_BLOCKS[ver];
+    const eccLen = ECC_PER_BLOCK[ver];
+    const raw = totalCodewords(ver);
+    const shortLen = Math.floor(raw / numBlocks) - eccLen;
+    const numShort = numBlocks - (raw % numBlocks);
+    const gen = rsGenerator(eccLen);
+    const blocks = [], eccs = [];
+    for (let i = 0, k = 0; i < numBlocks; i++) {
+      const len = shortLen + (i < numShort ? 0 : 1);
+      const blk = Array.prototype.slice.call(data.slice(k, k + len));
+      k += len;
+      blocks.push(blk);
+      eccs.push(rsRemainder(blk, gen));
+    }
+    const res = [];
+    for (let i = 0; i <= shortLen; i++)
+      for (let b = 0; b < numBlocks; b++)
+        if (i < blocks[b].length) res.push(blocks[b][i]);
+    for (let i = 0; i < eccLen; i++)
+      for (let b = 0; b < numBlocks; b++) res.push(eccs[b][i]);
+    return res;
+  }
+
+  function maskBit(k, x, y) {
+    switch (k) {
+      case 0: return (x + y) % 2 === 0;
+      case 1: return y % 2 === 0;
+      case 2: return x % 3 === 0;
+      case 3: return (x + y) % 3 === 0;
+      case 4: return (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0;
+      case 5: return ((x * y) % 2) + ((x * y) % 3) === 0;
+      case 6: return (((x * y) % 2) + ((x * y) % 3)) % 2 === 0;
+      default: return (((x + y) % 2) + ((x * y) % 3)) % 2 === 0;
+    }
+  }
+
+  const PAT3 = [[1, 0, 1, 1, 1, 0, 1, 0, 0, 0, 0], [0, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1]];
+
+  function penalty(mod, size) {
+    let score = 0;
+    const line = (get) => {                       // rule 1: runs of 5+ equal modules
+      let p = 0, run = 1;
+      for (let i = 1; i <= size; i++) {
+        if (i < size && get(i) === get(i - 1)) run++;
+        else { if (run >= 5) p += 3 + (run - 5); run = 1; }
+      }
+      return p;
+    };
+    for (let y = 0; y < size; y++) score += line((i) => mod[y][i]);
+    for (let x = 0; x < size; x++) score += line((i) => mod[i][x]);
+    for (let y = 0; y < size - 1; y++)            // rule 2: 2x2 blocks
+      for (let x = 0; x < size - 1; x++) {
+        const c = mod[y][x];
+        if (c === mod[y][x + 1] && c === mod[y + 1][x] && c === mod[y + 1][x + 1]) score += 3;
+      }
+    const hit3 = (get) => {                       // rule 3: 1:1:3:1:1 with 4 light modules
+      let p = 0;
+      for (let off = 0; off + 11 <= size; off++) {
+        for (const pat of PAT3) {
+          let ok = true;
+          for (let k = 0; k < 11; k++) {
+            if ((get(off + k) ? 1 : 0) !== pat[k]) { ok = false; break; }
+          }
+          if (ok) p += 40;
+        }
+      }
+      return p;
+    };
+    for (let y = 0; y < size; y++) score += hit3((i) => mod[y][i]);
+    for (let x = 0; x < size; x++) score += hit3((i) => mod[i][x]);
+    let dark = 0;                                 // rule 4: balance of dark modules
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (mod[y][x]) dark++;
+    const total = size * size;
+    score += Math.max(0, Math.floor(Math.abs(dark * 20 - total * 10) / total) - 1) * 10;
+    return score;
+  }
+
+  function encode(text) {
+    const payload = toUtf8(text);
+    let ver = 1;
+    while (ver <= 40) {
+      const lenBits = ver < 10 ? 8 : 16;
+      if (4 + lenBits + payload.length * 8 <= dataCodewords(ver) * 8) break;
+      ver++;
+    }
+    if (ver > 40) throw new Error("QR: text too long");
+
+    const codewords = addEccAndInterleave(buildDataCodewords(ver, payload), ver);
+    const size = ver * 4 + 17;
+    const mod = [], fn = [];
+    for (let y = 0; y < size; y++) {
+      mod.push(new Array(size).fill(false));
+      fn.push(new Array(size).fill(false));
+    }
+    const setFn = (x, y, dark) => {
+      if (x >= 0 && y >= 0 && x < size && y < size) { mod[y][x] = dark; fn[y][x] = true; }
+    };
+
+    // timing patterns first; the finder patterns then overwrite the parts that overlap them
+    for (let i = 0; i < size; i++) { setFn(6, i, i % 2 === 0); setFn(i, 6, i % 2 === 0); }
+
+    // finder patterns with separators
+    const finder = (cx, cy) => {
+      for (let dy = -4; dy <= 4; dy++)
+        for (let dx = -4; dx <= 4; dx++) {
+          const d = Math.max(Math.abs(dx), Math.abs(dy));
+          setFn(cx + dx, cy + dy, d !== 2 && d !== 4);
+        }
+    };
+    finder(3, 3); finder(size - 4, 3); finder(3, size - 4);
+
+    // alignment patterns
+    const ap = alignPositions(ver);
+    for (const cy of ap) {
+      for (const cx of ap) {
+        if ((cx === 6 && cy === 6) || (cx === 6 && cy === size - 7) ||
+            (cx === size - 7 && cy === 6)) continue;
+        for (let dy = -2; dy <= 2; dy++)
+          for (let dx = -2; dx <= 2; dx++)
+            setFn(cx + dx, cy + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1);
+      }
+    }
+
+    // Reserve the format information areas (30 modules) plus the always-dark module.
+    // First copy: column 8 and row 8, rows/cols 0..8, skipping the timing line at index 6.
+    for (let i = 0; i <= 8; i++) {
+      if (i === 6) continue;
+      setFn(8, i, false); setFn(i, 8, false);
+    }
+    // Second copy: 8 modules along row 8 (right edge), 7 along column 8 (bottom edge).
+    for (let i = 0; i < 8; i++) setFn(size - 1 - i, 8, false);
+    for (let i = 0; i < 7; i++) setFn(8, size - 1 - i, false);
+    setFn(8, size - 8, true);                  // the always-dark module
+
+    // reserve the version information areas
+    if (ver >= 7) {
+      for (let i = 0; i < 18; i++) {
+        const a = size - 11 + (i % 3), b = Math.floor(i / 3);
+        setFn(a, b, false); setFn(b, a, false);
+      }
+    }
+
+    // data + EC codewords, in the two-module-wide zigzag (column 6 skipped)
+    let bitIdx = 0;
+    const totalBits = codewords.length * 8;
+    for (let right = size - 1; right >= 1; right -= 2) {
+      if (right === 6) right = 5;
+      for (let vert = 0; vert < size; vert++) {
+        for (let j = 0; j < 2; j++) {
+          const x = right - j;
+          const upward = ((right + 1) & 2) === 0;
+          const y = upward ? size - 1 - vert : vert;
+          if (!fn[y][x] && bitIdx < totalBits) {
+            mod[y][x] = ((codewords[bitIdx >>> 3] >>> (7 - (bitIdx & 7))) & 1) === 1;
+            bitIdx++;
+          }
+        }
+      }
+    }
+
+    function applyMask(k) {
+      for (let y = 0; y < size; y++)
+        for (let x = 0; x < size; x++)
+          if (!fn[y][x] && maskBit(k, x, y)) mod[y][x] = !mod[y][x];
+    }
+    function drawFormat(mask) {
+      const dataBits = (0 << 3) | mask;          // ISO 18004 EC indicator: M = 00
+      let rem = dataBits;
+      for (let i = 0; i < 10; i++) rem = (rem << 1) ^ ((rem >>> 9) * 0x537);
+      const bits = ((dataBits << 10) | rem) ^ 0x5412;
+      const g = (i) => ((bits >>> i) & 1) === 1;
+      const put = (x, y, i) => { mod[y][x] = g(i); };   // coordinates as (x, y)
+      // copy 1, around the top-left finder
+      for (let i = 0; i <= 5; i++) put(8, i, i);
+      put(8, 7, 6); put(8, 8, 7); put(7, 8, 8);
+      for (let i = 9; i < 15; i++) put(14 - i, 8, i);
+      // copy 2: along row 8 (top-right) and down column 8 (bottom-left)
+      for (let i = 0; i < 8; i++) put(size - 1 - i, 8, i);
+      for (let i = 8; i < 15; i++) put(8, size - 15 + i, i);
+      mod[size - 8][8] = true;                   // always-dark module
+    }
+    function drawVersion() {
+      if (ver < 7) return;
+      let rem = ver;
+      for (let i = 0; i < 12; i++) rem = (rem << 1) ^ ((rem >>> 11) * 0x1F25);
+      const bits = (ver << 12) | rem;
+      for (let i = 0; i < 18; i++) {
+        const bit = ((bits >>> i) & 1) === 1;
+        const a = size - 11 + (i % 3), b = Math.floor(i / 3);
+        mod[a][b] = bit; mod[b][a] = bit;
+      }
+    }
+
+    let bestMask = 0, bestScore = Infinity;
+    for (let k = 0; k < 8; k++) {
+      applyMask(k); drawFormat(k); drawVersion();
+      const score = penalty(mod, size);
+      if (score < bestScore) { bestScore = score; bestMask = k; }
+      applyMask(k);                              // masks are their own inverse
+    }
+    applyMask(bestMask); drawFormat(bestMask); drawVersion();
+    return {size: size, version: ver, mask: bestMask, modules: mod};
+  }
+
+  function draw(canvas, text, scale, quiet) {
+    const q = (quiet === undefined) ? 4 : quiet;
+    const s = (quiet === undefined) ? 4 : quiet;
+    const res = encode(text);
+    const dim = (res.size + 2 * q) * scale;
+    canvas.width = dim; canvas.height = dim;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, dim, dim);
+    ctx.fillStyle = "#000000";
+    for (let y = 0; y < res.size; y++)
+      for (let x = 0; x < res.size; x++)
+        if (res.modules[y][x]) ctx.fillRect((x + q) * scale, (y + s) * scale, scale, scale);
+    return res;
+  }
+
+  return {encode: encode, draw: draw};
+})();
+
+/* ==========================================================================
+   Model loading
+   ========================================================================== */
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = src;
+    s.async = true;
+    s.onload = resolve;
+    s.onerror = () => reject(new Error("script load failed"));
+    document.head.appendChild(s);
+  });
+}
+
+async function loadModel() {
+  for (const v of ORT_BUILDS) {
+    const base = "https://cdn.jsdelivr.net/npm/onnxruntime-web@" + v + "/dist/";
+    try {
+      await loadScript(base + "ort.wasm.min.js");
+      if (!window.ort || !window.ort.InferenceSession) throw new Error("no global ort");
+      ortLib = window.ort;
+      ortLib.env.wasm.wasmPaths = base;         // fetch the .wasm beside the JS
+      ortLib.env.wasm.numThreads = 1;           // iOS/Safari: no SharedArrayBuffer on Pages
+      ortLib.env.wasm.proxy = false;
+      session = await ortLib.InferenceSession.create(MODEL_URL);
+      setStatus("Model ready (onnxruntime-web " + v + "; input " + session.inputNames[0] +
+        " 1×3×" + INFO.input_size + "×" + INFO.input_size + ")", "ok");
+      return true;
+    } catch (e) {
+      console.warn("onnxruntime-web " + v + " failed:", e);
+      setStatus("onnxruntime-web " + v + " failed (" + ((e && (e.message || e.name)) || e) +
+        "), trying another build…", "warn");
+      try { delete window.ort; } catch (e) { window.ort = undefined; }
+      ortLib = null; session = null;
+    }
+  }
+  setStatus("Could not load the model (network problem, or no WASM support here).", "err");
+  return false;
+}
+
+/* ==========================================================================
+   Boot
+   ========================================================================== */
+async function boot() {
+  $("camBtn").addEventListener("click", () => {
+    if (running || stream) {
+      stopCamera();
+      snap.style.display = "none";
+      video.style.display = "block";
+      guide.style.display = "block";
+      resetProbs();
+      setStatus("Camera stopped.");
+    } else {
+      startCamera();
+    }
+  });
+  $("file").addEventListener("change", onFile);
+  $("testBtn").addEventListener("click", () =>
+    selfTest().catch((e) => setStatus("Self-test error: " + ((e && e.message) || e), "err")));
+
+  try {
+    INFO = await (await fetch(INFO_URL)).json();
+  } catch (e) {
+    setStatus("Could not read " + INFO_URL, "err");
+    return;
+  }
+  ["szTxt", "szTxt2", "szTxt3", "szTxt4"].forEach((id) => {
+    $(id).textContent = INFO.input_size;
+  });
+  buildRows();
+
+  // The QR code and its link are independent of the model, so do them first.
+  try {
+    const res = QR.draw($("qr"), PAGES_URL, 6, 4);
+    window.__qrInfo = {url: PAGES_URL, size: res.size, version: res.version, mask: res.mask,
+      modules: res.modules};
+  } catch (e) {
+    $("qr").replaceWith(document.createTextNode("QR error: " + e.message));
+  }
+  const link = $("qrLink");
+  link.href = PAGES_URL;
+  link.textContent = PAGES_URL;
+
+  const ok = await loadModel();
+  if (ok && location.protocol === "https:") {
+    // iOS may still require the button tap; the failure path leaves the button ready.
+    startCamera();
+  } else if (location.protocol !== "https:") {
+    hint.textContent = "Serving over " + location.protocol +
+      " — tap “Start rear camera” (needs HTTPS) or upload a photo.";
+  }
+}
+
+boot();
+</script>
+</body>
+</html>
