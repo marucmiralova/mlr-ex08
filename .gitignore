@@ -1,0 +1,8 @@
+# downloaded leaf photographs (Task 2/3/4 data, not for the repository)
+data/
+__pycache__/
+
+# the archive the notebook downloads itself, and the copy of the notebook I
+# kept before inserting the Task 4 cells
+ex08_for_agent.zip
+*.bak

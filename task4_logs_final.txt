@@ -1,0 +1,59 @@
+retraining mob-best (seed 0): fine-tuned + colour aug + AdamW + smoothing + cosine 30 epochs + best epoch
+  [mob-best seed 0] epoch  1 loss 1.1537 val 0.726
+  [mob-best seed 0] epoch  2 loss 0.8837 val 0.806
+  [mob-best seed 0] epoch  3 loss 0.8136 val 0.742
+  [mob-best seed 0] epoch  4 loss 0.6620 val 0.726
+  [mob-best seed 0] epoch  5 loss 0.6840 val 0.726
+  [mob-best seed 0] epoch  6 loss 0.6693 val 0.726
+  [mob-best seed 0] epoch  7 loss 0.5936 val 0.806
+  [mob-best seed 0] epoch  8 loss 0.5967 val 0.806
+  [mob-best seed 0] epoch  9 loss 0.5109 val 0.774
+  [mob-best seed 0] epoch 10 loss 0.5616 val 0.855
+  [mob-best seed 0] epoch 11 loss 0.5793 val 0.823
+  [mob-best seed 0] epoch 12 loss 0.5624 val 0.790
+  [mob-best seed 0] epoch 13 loss 0.5293 val 0.839
+  [mob-best seed 0] epoch 14 loss 0.5079 val 0.855
+  [mob-best seed 0] epoch 15 loss 0.4875 val 0.823
+  [mob-best seed 0] epoch 16 loss 0.4896 val 0.887
+  [mob-best seed 0] epoch 17 loss 0.4868 val 0.855
+  [mob-best seed 0] epoch 18 loss 0.4902 val 0.839
+  [mob-best seed 0] epoch 19 loss 0.4862 val 0.871
+  [mob-best seed 0] epoch 20 loss 0.4468 val 0.871
+  [mob-best seed 0] epoch 21 loss 0.4248 val 0.871
+  [mob-best seed 0] epoch 22 loss 0.4266 val 0.871
+  [mob-best seed 0] epoch 23 loss 0.4252 val 0.887
+  [mob-best seed 0] epoch 24 loss 0.4306 val 0.839
+  [mob-best seed 0] epoch 25 loss 0.4726 val 0.871
+  [mob-best seed 0] epoch 26 loss 0.4588 val 0.871
+  [mob-best seed 0] epoch 27 loss 0.4330 val 0.871
+  [mob-best seed 0] epoch 28 loss 0.4410 val 0.887
+  [mob-best seed 0] epoch 29 loss 0.4343 val 0.887
+  [mob-best seed 0] epoch 30 loss 0.4297 val 0.887
+{
+ "name": "mob-best",
+ "change": "fine-tuned + colour aug + AdamW + smoothing + cosine 30 epochs + best epoch",
+ "seed": 0,
+ "epochs": 30,
+ "n_train": 244,
+ "seconds": 50.2,
+ "train_loss": 0.42974065170913445,
+ "val": 0.8870967741935484,
+ "camera": 0.7580645161290323,
+ "hist": 0.6416666666666667,
+ "model_parameters": 1521956
+}
+validation   plain 0.887  mirrored 0.871
+camera-like plain 0.758  mirrored 0.790
+last year's  plain 0.642  mirrored 0.642
+wrote task4_confusion.png
+wrote task4_figure.png
+[torch.onnx] Obtain model graph for `MobileNetV3([...]` with `torch.export.export(..., strict=False)`...
+[torch.onnx] Obtain model graph for `MobileNetV3([...]` with `torch.export.export(..., strict=False)`... ✅
+[torch.onnx] Run decompositions...
+[torch.onnx] Run decompositions... ✅
+[torch.onnx] Translate the graph into ONNX...
+[torch.onnx] Translate the graph into ONNX... ✅
+[torch.onnx] Optimize the ONNX graph...
+[torch.onnx] Optimize the ONNX graph... ✅
+leaf_model_best.onnx: 6.4 MB
+check_image.jpg: {'apple': 0.8534165620803833, 'cherry': 0.09732116758823395, 'chestnut': 0.030073625966906548, 'maple': 0.019188620150089264}
